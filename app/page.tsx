@@ -14,6 +14,7 @@ export default function Home() {
     navigator.mediaDevices.getDisplayMedia({video: true, audio: true}).then((lStream) => {
       setLocalStream(lStream);
       if (!connection) return;
+
       if (!localVideo.current) return;
       localVideo.current.srcObject = lStream;
 
@@ -21,57 +22,34 @@ export default function Home() {
       lStream.getTracks().forEach((track) => {
         newConnection.addTrack(track, lStream);
       })
-  
-      newConnection.ontrack = event => {
-        console.log('got track')
-        event.streams[0].getTracks().forEach(track => {
-          console.log('each track')
-          if (!remoteStream) return;
-          console.log('remote stream exists')
-          remoteStream.addTrack(track);
-          if (!remoteVideo.current) return;
-          console.log('remote video exists')
-          remoteVideo.current.srcObject = event.streams[0];
-        })
-      }
-
       setConnection(newConnection);
     });
     
   };
 
-
-
-  const joinStream = () => {
-    console.log('joining stream')
+  const showRemoteStream = (event: RTCTrackEvent) => {
     if (!remoteVideo.current) return;
-    console.log('remote video exists');
-    if (!remoteStream) return;
-    console.log('remote stream exists');
-    remoteVideo.current.srcObject = remoteStream;
+    remoteVideo.current.srcObject = event.streams[0]
   }
 
   useEffect(() => {
-    const lStream = new MediaStream();
-    setLocalStream(lStream);
-    const rStream = new MediaStream();
-    setRemoteStream(rStream);
     const config = {
       iceServers: [
         {
-          urls: ['stun:stun1.l.google.com:19302', 'stun:stun2.l.google.com:19302'],
+          urls: process.env.NEXT_PUBLIC_TURN_URL ?? '',
+          username: process.env.NEXT_PUBLIC_TURN_USERNAME ?? '',
+          credential: process.env.NEXT_PUBLIC_TURN_CREDENTIAL ?? '',
         },
-      ],
-      iceCandidatePoolSize: 10,
-    };
-    const connection = new RTCPeerConnection(config);
-    connection.ontrack = (event) => {
-      
+        {
+          urls: [process.env.NEXT_PUBLIC_STUN_SERVER_1 ?? '', process.env.NEXT_PUBLIC_STUN_SERVER_2 ?? '']
+        }
+      ]
     }
-    setConnection(connection);
+    const conn = new RTCPeerConnection(config);
 
-    
-    
+    console.log(conn.getStats())
+    conn.ontrack = showRemoteStream;
+    setConnection(conn);
   }, [])
 
   return (
@@ -83,7 +61,6 @@ export default function Home() {
         <video style={{width: 640, height: 360, backgroundColor: "white"}} ref={remoteVideo} autoPlay></video>
       </div>
       <button style={{padding: 6, marginRight: 16, color: "burlywood"}} onClick={startStream}>Stream</button>
-      <button style={{padding: 6, marginRight: 16, color: "burlywood"}} onClick={joinStream}>Join</button>
     </main>
   )
 }

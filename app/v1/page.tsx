@@ -23,23 +23,20 @@ export default function V1() {
         if (!localVideo.current) return;
         localVideo.current.srcObject = stream;
 
+        initializeStream();
+
         stream.getTracks().forEach(track => pc.current?.addTrack(track, stream))
     }
 
     const call = async () => {
         if (!pc.current) return;
-        const offer = await pc.current.createOffer()
-        await pc.current.setLocalDescription(offer).then(() => {
-            if (!pc.current) return;
-            sendMessage({
-                type: 'offer',
-                sdp: pc.current.localDescription
-            })
-        });
+        const offer = await pc.current.createOffer({offerToReceiveAudio: true, offerToReceiveVideo: true})
+        console.log('2');
+        await pc.current.setLocalDescription(new RTCSessionDescription(offer))
     }
     
     const sendMessage = async (message: SignalingMessage) => {
-        fetch('/api/signaling', {
+        return fetch('/api/signaling', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -55,48 +52,26 @@ export default function V1() {
             return;
         };
         console.log('setting remote description')
-        await pc.current.setRemoteDescription(new RTCSessionDescription(message.sdp));
+        await pc.current.setRemoteDescription(message.sdp);
+
+        const stream = await navigator.mediaDevices.getUserMedia({video: true, audio: true})
+        stream.getTracks().forEach(track => pc.current?.addTrack(track, stream))
+
         console.log('creating answer')
         const answer = await pc.current.createAnswer()
 
         console.log('setting local description')
-        await pc.current.setLocalDescription(answer)
+        await pc.current.setLocalDescription(new RTCSessionDescription(answer))
 
         console.log('sending answer message')
-        sendMessage({
+        await sendMessage({
             type: 'answer',
             sdp: pc.current.localDescription
         });
         
     }
 
-    useEffect(() => {
-        const signalingChannel = pusher.subscribe('signaling');
-        signalingChannel.bind('client-message', async (message: SignalingMessage) => {
-            switch (message.type) {
-              case 'offer':
-                console.log('__offer')
-                handleOffer(message)
-                break;
-              case 'answer':
-                console.log('__answer')
-                if (!pc.current) return;
-                if (!message.sdp) {
-                    console.error('no SDP provided in answer message!')
-                    return;
-                };
-                pc.current.setRemoteDescription(new RTCSessionDescription(message.sdp));
-                break;
-              case 'new-ice-candidate':
-                console.log('__ice-candidate')
-                if (!pc.current) return;
-                pc.current.addIceCandidate(new RTCIceCandidate(message.candidate));
-                break;
-              default:
-                console.error(`Unknown message type: ${message.type}`);
-            }
-        })
-
+    const initializeStream = () => {
         const configuration: RTCConfiguration = {
             iceServers: [
                 {
@@ -115,40 +90,81 @@ export default function V1() {
         }
         pc.current = new RTCPeerConnection(configuration);
 
-        pc.current.onicecandidate = ({candidate}) => {
+        pc.current.onicecandidate = async ({candidate}) => {
             if (candidate) {
-                sendMessage({
+                await sendMessage({
                     type: 'new-ice-candidate',
                     candidate: candidate
                 })
             }
         }
 
-        // pc.current.onnegotiationneeded = async () => {
-        //     try {
-        //         if (!pc.current) return;
-        //         const offer = await pc.current.createOffer();
-        //         await pc.current.setLocalDescription(offer);
-        //         await sendMessage({
-        //             type: 'offer',
-        //             sdp: pc.current.localDescription
-        //         })
-        //     } catch (err) {
-        //         console.error(err);
-        //     }
-        // }
+        pc.current.onnegotiationneeded = async () => {
+            try {
+                if (!pc.current) return;
+                const offer = await pc.current.createOffer();
+                console.log('1')
+                await pc.current.setLocalDescription(new RTCSessionDescription(offer));
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        pc.current.onsignalingstatechange = (event) => {
+            console.log('signaling state change: ', pc.current?.signalingState)
+        }
 
         pc.current.oniceconnectionstatechange = () => {
+            console.log(`ICE connection state change: ${pc.current?.iceConnectionState}`);
             if (pc.current && pc.current.iceConnectionState === 'failed') {
               console.error('ICE Connection Failed');
               // Notify the user about the failure
             }
         };
 
+        pc.current.onicegatheringstatechange = async () => {
+            if (pc.current && pc.current.iceGatheringState === 'complete') {
+                const localDescription = pc.current.localDescription;
+                // Send localDescription to the other peer using your signaling mechanism
+                await sendMessage({
+                    type: 'offer',
+                    sdp: pc.current.localDescription
+                })
+            }
+         };
+
         pc.current.ontrack = (event) => {
             if (!remoteVideo.current) return;
             remoteVideo.current.srcObject = event.streams[0];
         }
+    }
+
+    useEffect(() => {
+        const signalingChannel = pusher.subscribe('signaling');
+        signalingChannel.bind('client-message', async (message: SignalingMessage) => {
+            switch (message.type) {
+              case 'offer':
+                console.log('__offer')
+                await handleOffer(message)
+                break;
+              case 'answer':
+                console.log('__answer')
+                if (!pc.current || pc.current.signalingState === 'stable') return;
+                if (!message.sdp) {
+                    console.error('no SDP provided in answer message!')
+                    return;
+                };
+                await pc.current.setRemoteDescription(message.sdp);
+                break;
+              case 'new-ice-candidate':
+                console.log('__ice-candidate')
+                if (!pc.current || !pc.current.remoteDescription) return;
+                await pc.current.addIceCandidate(message.candidate);
+                break;
+              default:
+                console.error(`Unknown message type: ${message.type}`);
+            }
+        })
 
         return () => {
             if (isFirstRender) {

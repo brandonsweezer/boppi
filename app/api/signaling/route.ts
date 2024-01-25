@@ -1,6 +1,5 @@
+import { SignalingMessage } from "@/types/signaling";
 import { NextRequest, NextResponse } from "next/server";
-
-import { MongoClient, ServerApiVersion } from 'mongodb';
 import Pusher from 'pusher';
 
 const pusher = new Pusher({
@@ -12,9 +11,8 @@ const pusher = new Pusher({
   })
 
 export async function POST(request: NextRequest) {
-    const message = await request.json();
-    
-    console.log('sending message', message.type)
-    pusher.trigger('signaling', 'client-message', message)
-    return new NextResponse('ok', {status: 200})
+    const message = await request.json() as SignalingMessage;
+    console.log(message.type, '==============');
+    const res = await pusher.trigger('signaling', 'client-message', message)
+    return NextResponse.json(res);
 }

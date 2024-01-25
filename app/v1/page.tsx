@@ -13,26 +13,30 @@ const pusher = new Pusher(
 
 export default function V1() {
     const [isFirstRender, setIsFirstRender] = useState(true);
+    const username = useRef('');
 
     const localVideo = useRef<HTMLVideoElement>(null);
     const remoteVideo = useRef<HTMLVideoElement>(null);
-    const pc = useRef<RTCPeerConnection | null>(null);
+    const connection = useRef<RTCPeerConnection | null>(null);
 
-    const startStream = async () => {
+    const startStream = async function () {
+        const pc = initializeConnection();
+        connection.current = pc;
+
         const stream = await navigator.mediaDevices.getDisplayMedia({video: true, audio: true})
         if (!localVideo.current) return;
         localVideo.current.srcObject = stream;
 
-        initializeStream();
+        stream.getTracks().forEach(track => pc.addTrack(track, stream))
 
-        stream.getTracks().forEach(track => pc.current?.addTrack(track, stream))
     }
 
-    const call = async () => {
-        if (!pc.current) return;
-        const offer = await pc.current.createOffer({offerToReceiveAudio: true, offerToReceiveVideo: true})
-        console.log('2');
-        await pc.current.setLocalDescription(new RTCSessionDescription(offer))
+    const call = async function () {
+        const pc = initializeConnection();
+        const offer = await pc.createOffer({offerToReceiveAudio: true, offerToReceiveVideo: true})
+        console.log('made offer...?');
+        await pc.setLocalDescription(new RTCSessionDescription(offer))
+        connection.current = pc;
     }
     
     const sendMessage = async (message: SignalingMessage) => {
@@ -45,33 +49,38 @@ export default function V1() {
         })
     }
 
-    const handleOffer = async (message: SignalingMessage) => {
-        if (!pc.current) return;
+    const sendHello = async () => {
+        return fetch('/api/signaling', {
+            method: 'GET'
+        })
+    }
+
+    const handleOffer = async function (message: SignalingMessage) {
+        if (!connection.current) return;
         if (!message.sdp) {
             console.error('no SDP provided in offer message!')
             return;
         };
         console.log('setting remote description')
-        await pc.current.setRemoteDescription(message.sdp);
-
-        const stream = await navigator.mediaDevices.getUserMedia({video: true, audio: true})
-        stream.getTracks().forEach(track => pc.current?.addTrack(track, stream))
+        await connection.current.setRemoteDescription(message.sdp);
 
         console.log('creating answer')
-        const answer = await pc.current.createAnswer()
+        const answer = await connection.current.createAnswer()
 
         console.log('setting local description')
-        await pc.current.setLocalDescription(new RTCSessionDescription(answer))
+        await connection.current.setLocalDescription(new RTCSessionDescription(answer))
 
         console.log('sending answer message')
         await sendMessage({
+            roomCode: '1',
             type: 'answer',
-            sdp: pc.current.localDescription
+            user: username.current,
+            sdp: connection.current.localDescription
         });
         
     }
 
-    const initializeStream = () => {
+    const initializeConnection = function () {
         const configuration: RTCConfiguration = {
             iceServers: [
                 {
@@ -88,60 +97,67 @@ export default function V1() {
             ],
             iceCandidatePoolSize: 10,
         }
-        pc.current = new RTCPeerConnection(configuration);
+        const pc = new RTCPeerConnection(configuration);
 
-        pc.current.onicecandidate = async ({candidate}) => {
+        pc.onicecandidate = async function ({candidate}) {
             if (candidate) {
                 await sendMessage({
+                    roomCode: '1',
                     type: 'new-ice-candidate',
+                    user: username.current,
                     candidate: candidate
                 })
             }
         }
 
-        pc.current.onnegotiationneeded = async () => {
+        pc.onnegotiationneeded = async function () {
             try {
-                if (!pc.current) return;
-                const offer = await pc.current.createOffer();
-                console.log('1')
-                await pc.current.setLocalDescription(new RTCSessionDescription(offer));
+                if (!pc) return;
+                const offer = await pc.createOffer();
+                await pc.setLocalDescription(new RTCSessionDescription(offer));
             } catch (err) {
                 console.error(err);
             }
         }
 
-        pc.current.onsignalingstatechange = (event) => {
-            console.log('signaling state change: ', pc.current?.signalingState)
+        pc.onsignalingstatechange = function (event) {
+            console.log('signaling state change: ', pc?.signalingState)
         }
 
-        pc.current.oniceconnectionstatechange = () => {
-            console.log(`ICE connection state change: ${pc.current?.iceConnectionState}`);
-            if (pc.current && pc.current.iceConnectionState === 'failed') {
+        pc.oniceconnectionstatechange = function () {
+            console.log(`ICE connection state change: ${pc?.iceConnectionState}`);
+            if (pc && pc.iceConnectionState === 'failed') {
               console.error('ICE Connection Failed');
               // Notify the user about the failure
             }
         };
 
-        pc.current.onicegatheringstatechange = async () => {
-            if (pc.current && pc.current.iceGatheringState === 'complete') {
-                const localDescription = pc.current.localDescription;
+        pc.onicegatheringstatechange = async function () {
+            if (pc && pc.iceGatheringState === 'complete') {
+                const localDescription = pc.localDescription;
                 // Send localDescription to the other peer using your signaling mechanism
                 await sendMessage({
+                    roomCode: '1',
                     type: 'offer',
-                    sdp: pc.current.localDescription
+                    user: username.current,
+                    sdp: pc.localDescription
                 })
             }
          };
 
-        pc.current.ontrack = (event) => {
+        pc.ontrack = function (event) {
             if (!remoteVideo.current) return;
             remoteVideo.current.srcObject = event.streams[0];
         }
+        return pc;
     }
 
     useEffect(() => {
-        const signalingChannel = pusher.subscribe('signaling');
-        signalingChannel.bind('client-message', async (message: SignalingMessage) => {
+        const signalingChannel = pusher.subscribe('signaling'); // should be the room code?
+        signalingChannel.bind('client-message', async function (message: SignalingMessage) {
+            if (message.user === username.current) return;
+            console.log(message.user, username.current);
+            console.log(message);
             switch (message.type) {
               case 'offer':
                 console.log('__offer')
@@ -149,17 +165,17 @@ export default function V1() {
                 break;
               case 'answer':
                 console.log('__answer')
-                if (!pc.current || pc.current.signalingState === 'stable') return;
+                if (!connection.current || connection.current.signalingState === 'stable') return;
                 if (!message.sdp) {
                     console.error('no SDP provided in answer message!')
                     return;
                 };
-                await pc.current.setRemoteDescription(message.sdp);
+                await connection.current.setRemoteDescription(message.sdp);
                 break;
               case 'new-ice-candidate':
                 console.log('__ice-candidate')
-                if (!pc.current || !pc.current.remoteDescription) return;
-                await pc.current.addIceCandidate(message.candidate);
+                if (!connection.current || !connection.current.remoteDescription) return;
+                await connection.current.addIceCandidate(message.candidate);
                 break;
               default:
                 console.error(`Unknown message type: ${message.type}`);
@@ -172,6 +188,7 @@ export default function V1() {
                 return;
             }
             console.log('cleaning up!');
+            signalingChannel.unbind_all();
             signalingChannel.unsubscribe();
             pusher.disconnect();
         }
@@ -194,6 +211,8 @@ export default function V1() {
                 <button onClick={call} style={{padding: '.5rem 1rem .5rem 1rem', paddingLeft: '1rem', paddingRight: '1rem', borderRadius: 4}}>Call</button>
                 <button style={{padding: '.5rem 1rem .5rem 1rem', paddingLeft: '1rem', paddingRight: '1rem', borderRadius: 4}}>Hangup</button>
             </div>
+            <input type="text" onChange={(e) => username.current = e.target.value} placeholder="username"/>
+            <button onClick={sendHello}>Say Hi</button>
         </div>
-    )
+    );
 }

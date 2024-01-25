@@ -13,30 +13,20 @@ const pusher = new Pusher(
 
 export default function V1() {
     const [isFirstRender, setIsFirstRender] = useState(true);
-    const username = useRef('');
+    const [connectionState, setConnectionState] = useState('');
+    const username = useRef('watcher');
 
-    const localVideo = useRef<HTMLVideoElement>(null);
     const remoteVideo = useRef<HTMLVideoElement>(null);
     const connection = useRef<RTCPeerConnection | null>(null);
 
-    const startStream = async function () {
-        const pc = initializeConnection();
-        connection.current = pc;
-
-        const stream = await navigator.mediaDevices.getDisplayMedia({video: true, audio: true})
-        if (!localVideo.current) return;
-        localVideo.current.srcObject = stream;
-
-        stream.getTracks().forEach(track => pc.addTrack(track, stream))
-
-    }
-
     const call = async function () {
         const pc = initializeConnection();
-        const offer = await pc.createOffer({offerToReceiveAudio: true, offerToReceiveVideo: true})
-        console.log('made offer...?');
-        await pc.setLocalDescription(new RTCSessionDescription(offer))
         connection.current = pc;
+    }
+
+    const hangup = async function () {
+        if (!connection.current) return;
+        connection.current.close();
     }
     
     const sendMessage = async (message: SignalingMessage) => {
@@ -46,12 +36,6 @@ export default function V1() {
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify(message)
-        })
-    }
-
-    const sendHello = async () => {
-        return fetch('/api/signaling', {
-            method: 'GET'
         })
     }
 
@@ -85,7 +69,7 @@ export default function V1() {
             iceServers: [
                 {
                     urls: [
-                        process.env.NEXT_PUBLIC_STUN_SERVER_1 ?? '',
+                        // process.env.NEXT_PUBLIC_STUN_SERVER_1 ?? '',
                         process.env.NEXT_PUBLIC_STUN_SERVER_2 ?? '',
                     ]
                 },
@@ -126,6 +110,7 @@ export default function V1() {
 
         pc.oniceconnectionstatechange = function () {
             console.log(`ICE connection state change: ${pc?.iceConnectionState}`);
+            setConnectionState(pc?.iceConnectionState);
             if (pc && pc.iceConnectionState === 'failed') {
               console.error('ICE Connection Failed');
               // Notify the user about the failure
@@ -198,21 +183,17 @@ export default function V1() {
         <div style={{display: 'flex', flexDirection: 'column', gap: '1rem'}}>
             <div style={{display: 'flex', marginLeft: 'auto', marginRight: 'auto', gap: '1rem'}}>
                 <div style={{display: 'flex', flexDirection: 'column'}}>
-                    <h2>Local Stream</h2>
-                    <video ref={localVideo} style={{ width: '500px', backgroundColor: 'blue'}} autoPlay></video>
-                </div>
-                <div style={{display: 'flex', flexDirection: 'column'}}>
                     <h2>Remote Stream</h2>
-                    <video ref={remoteVideo} style={{width: '500px', backgroundColor: 'green'}} autoPlay></video>
+                    <video ref={remoteVideo} style={{ width: '960px', backgroundColor: 'grey'}} autoPlay></video>
                 </div>
+            </div>
+            <div style={{display: 'flex', justifyContent: 'space-around'}}>
+                <h2>{connectionState}</h2>
             </div>
             <div style={{display: 'flex', gap: '1rem', marginLeft: 'auto', marginRight: 'auto'}}>
-                <button onClick={startStream} style={{padding: '.5rem 1rem .5rem 1rem', paddingLeft: '1rem', paddingRight: '1rem', borderRadius: 4}}>Start</button>
-                <button onClick={call} style={{padding: '.5rem 1rem .5rem 1rem', paddingLeft: '1rem', paddingRight: '1rem', borderRadius: 4}}>Call</button>
-                <button style={{padding: '.5rem 1rem .5rem 1rem', paddingLeft: '1rem', paddingRight: '1rem', borderRadius: 4}}>Hangup</button>
+                <button onClick={call} style={{padding: '.5rem 1rem .5rem 1rem', paddingLeft: '1rem', paddingRight: '1rem', borderRadius: 4}}>Join</button>
+                <button onClick={hangup} style={{padding: '.5rem 1rem .5rem 1rem', paddingLeft: '1rem', paddingRight: '1rem', borderRadius: 4}}>Leave</button>
             </div>
-            <input type="text" onChange={(e) => username.current = e.target.value} placeholder="username"/>
-            <button onClick={sendHello}>Say Hi</button>
         </div>
     );
 }

@@ -1,10 +1,9 @@
 "use client"
 import { useEffect, useRef, useState } from "react"
 import adapter from "webrtc-adapter";
-import Pusher from 'pusher-js';
+import Pusher, { Channel } from 'pusher-js';
 
-import { SignalingMessage } from "@/types/signaling";
-
+import { SignalingMessage, SignalingMessageType } from "@/types/signaling";
 
 const pusher = new Pusher(
     process.env.NEXT_PUBLIC_PUSHER_APP_KEY ?? '', {
@@ -12,76 +11,53 @@ const pusher = new Pusher(
 })
 
 export default function V1() {
-    const [isFirstRender, setIsFirstRender] = useState(true);
-    const username = useRef('');
+    const impolite = true;
+    const [makingOffer, setMakingOffer] = useState(false);
 
+    const username = useRef('');
+    const signalingChannel = useRef<Channel | null>(null);
     const localVideo = useRef<HTMLVideoElement>(null);
     const remoteVideo = useRef<HTMLVideoElement>(null);
     const connection = useRef<RTCPeerConnection | null>(null);
 
     const startStream = async function () {
-        const pc = initializeConnection();
-        connection.current = pc;
+        try {
+            signalingChannel.current = await initSignalingChannel();
 
-        const stream = await navigator.mediaDevices.getDisplayMedia({video: true, audio: true})
-        if (!localVideo.current) return;
-        localVideo.current.srcObject = stream;
+            const pc = initializeConnection();
+            connection.current = pc;
+    
+            // const stream = await navigator.mediaDevices.getDisplayMedia({video: true, audio: true})
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: true,
+                audio: true
+            })
 
-        stream.getTracks().forEach(track => pc.addTrack(track, stream))
+            
+            stream.getTracks().forEach(track => pc.addTrack(track, stream))
+            // [...stream.getTracks(), ...audioStream.getTracks()].forEach(track => pc.addTrack(track, stream))
 
+            if (!localVideo.current) return;
+            localVideo.current.srcObject = stream;
+        } catch (e) { console.error(e) }
     }
 
-    const call = async function () {
-        const pc = initializeConnection();
-        const offer = await pc.createOffer({offerToReceiveAudio: true, offerToReceiveVideo: true})
-        console.log('made offer...?');
-        await pc.setLocalDescription(new RTCSessionDescription(offer))
-        connection.current = pc;
+    const endStream = async function () {
+        console.log('ending');
+        if (connection.current) connection.current.close();
+        if (localVideo.current) localVideo.current.srcObject = null;
     }
     
     const sendMessage = async (message: SignalingMessage) => {
         return fetch('/api/signaling', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(message)
         })
     }
 
-    const sendHello = async () => {
-        return fetch('/api/signaling', {
-            method: 'GET'
-        })
-    }
-
-    const handleOffer = async function (message: SignalingMessage) {
-        if (!connection.current) return;
-        if (!message.sdp) {
-            console.error('no SDP provided in offer message!')
-            return;
-        };
-        console.log('setting remote description')
-        await connection.current.setRemoteDescription(message.sdp);
-
-        console.log('creating answer')
-        const answer = await connection.current.createAnswer()
-
-        console.log('setting local description')
-        await connection.current.setLocalDescription(new RTCSessionDescription(answer))
-
-        console.log('sending answer message')
-        await sendMessage({
-            roomCode: '1',
-            type: 'answer',
-            user: username.current,
-            sdp: connection.current.localDescription
-        });
-        
-    }
-
     const initializeConnection = function () {
-        const configuration: RTCConfiguration = {
+        const config: RTCConfiguration = {
             iceServers: [
                 {
                     urls: [
@@ -97,30 +73,41 @@ export default function V1() {
             ],
             iceCandidatePoolSize: 10,
         }
-        const pc = new RTCPeerConnection(configuration);
 
-        pc.onicecandidate = async function ({candidate}) {
-            if (candidate) {
-                await sendMessage({
-                    roomCode: '1',
-                    type: 'new-ice-candidate',
-                    user: username.current,
-                    candidate: candidate
-                })
-            }
-        }
+        const pc = new RTCPeerConnection(config);
 
         pc.onnegotiationneeded = async function () {
+            console.log('negotiation needed');
+            if (!pc) return;
             try {
-                if (!pc) return;
-                const offer = await pc.createOffer();
-                await pc.setLocalDescription(new RTCSessionDescription(offer));
+                setMakingOffer(true);
+                await pc.setLocalDescription();
+                await sendMessage({
+                    roomCode: '1',
+                    user: username.current,
+                    type: SignalingMessageType.offer,
+                    sdp: pc.localDescription
+                });
             } catch (err) {
                 console.error(err);
+            } finally {
+                setMakingOffer(false);
             }
         }
 
-        pc.onsignalingstatechange = function (event) {
+        pc.onicecandidate = async function (event) {
+            console.log(event)
+            try {
+                await sendMessage({
+                    roomCode: '1',
+                    user: username.current,
+                    type: SignalingMessageType.iceCandidate,
+                    candidate: event.candidate,
+                });
+            } catch (err) { console.error(err) }
+        }
+
+        pc.onsignalingstatechange = function () {
             console.log('signaling state change: ', pc?.signalingState)
         }
 
@@ -133,12 +120,13 @@ export default function V1() {
         };
 
         pc.onicegatheringstatechange = async function () {
+            // generate connection offer with agreed ice candidate
             if (pc && pc.iceGatheringState === 'complete') {
-                const localDescription = pc.localDescription;
+                console.log('sending real offer')
                 // Send localDescription to the other peer using your signaling mechanism
                 await sendMessage({
                     roomCode: '1',
-                    type: 'offer',
+                    type: SignalingMessageType.offer,
                     user: username.current,
                     sdp: pc.localDescription
                 })
@@ -146,69 +134,99 @@ export default function V1() {
          };
 
         pc.ontrack = function (event) {
-            if (!remoteVideo.current) return;
-            remoteVideo.current.srcObject = event.streams[0];
+            event.track.onunmute = () => {
+                if (!remoteVideo.current) return;
+                remoteVideo.current.srcObject = event.streams[0];
+            }
+
+            event.track.onmute = () => {
+                console.log('stream ended!')
+            }
         }
+    
         return pc;
     }
 
-    useEffect(() => {
+    const initSignalingChannel = async function () {
+        let ignoreOffer = false;
         const signalingChannel = pusher.subscribe('signaling'); // should be the room code?
+
         signalingChannel.bind('client-message', async function (message: SignalingMessage) {
-            if (message.user === username.current) return;
-            console.log(message.user, username.current);
             console.log(message);
-            switch (message.type) {
-              case 'offer':
-                console.log('__offer')
-                await handleOffer(message)
-                break;
-              case 'answer':
-                console.log('__answer')
-                if (!connection.current || connection.current.signalingState === 'stable') return;
-                if (!message.sdp) {
-                    console.error('no SDP provided in answer message!')
-                    return;
-                };
-                await connection.current.setRemoteDescription(message.sdp);
-                break;
-              case 'new-ice-candidate':
-                console.log('__ice-candidate')
-                if (!connection.current || !connection.current.remoteDescription) return;
-                await connection.current.addIceCandidate(message.candidate);
-                break;
-              default:
-                console.error(`Unknown message type: ${message.type}`);
+            try {
+                if (!connection.current) return;
+                // ignore messages from self
+                if (message.user === username.current) return;
+
+                switch (message.type) {
+                    case SignalingMessageType.offer:
+                        console.log('recieving offer');
+
+                        // offer collision exists if making offer or non-stable connection
+                        const offerCollision = makingOffer || connection.current.signalingState !== 'stable';
+                        ignoreOffer = impolite && offerCollision;
+                        if (ignoreOffer || !message.sdp) return;
+
+                        console.log('init connection using agreed ice candidate')
+                        await connection.current.setRemoteDescription(message.sdp);
+                        try {
+                            // generates "perfect condition" answer
+                            await connection.current.setLocalDescription();
+                            console.log('answer sdp', connection.current.localDescription);
+                            await sendMessage({
+                                roomCode: '1',
+                                user: username.current,
+                                type: SignalingMessageType.offer,
+                                sdp: connection.current.localDescription
+                            });
+                        } catch (err) { console.log(err) }
+                        break;
+                    case SignalingMessageType.iceCandidate:
+                        console.log('__iceCandidate');
+
+                        // do nothing if still gathering ice candidates
+                        if (connection.current.iceGatheringState !== 'complete') return;
+
+                        try {
+                            await connection.current.addIceCandidate(message.candidate ?? undefined);
+                        } catch (err) {
+                            if (!ignoreOffer) { throw err }
+                        }
+                        break;
+                }
+            } catch (err) {
+                console.error('connection logic problem:')
+                console.error(err)
             }
         })
 
+        return signalingChannel;
+    }
+
+    useEffect(() => {
         return () => {
-            if (isFirstRender) {
-                setIsFirstRender(false);
-                return;
-            }
+            if (!signalingChannel.current) return;
+
             console.log('cleaning up!');
-            signalingChannel.unbind_all();
-            signalingChannel.unsubscribe();
+            signalingChannel.current.unbind_all();
+            signalingChannel.current.unsubscribe();
             pusher.disconnect();
         }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
 
     return (
         <div style={{display: 'flex', flexDirection: 'column', gap: '1rem'}}>
             <div style={{display: 'flex', marginLeft: 'auto', marginRight: 'auto', gap: '1rem'}}>
                 <div style={{display: 'flex', flexDirection: 'column'}}>
-                    <h2>Local Stream</h2>
-                    <video ref={localVideo} style={{ width: '500px', backgroundColor: 'blue'}} autoPlay></video>
+                    <h2 style={{marginLeft: 'auto', marginRight: 'auto'}}>Local Stream</h2>
+                    <video ref={localVideo} style={{ width: '100%', backgroundColor: '#615d5d', borderRadius: '2px'}} autoPlay></video>
                 </div>
             </div>
             <div style={{display: 'flex', gap: '1rem', marginLeft: 'auto', marginRight: 'auto'}}>
                 <button onClick={startStream} style={{padding: '.5rem 1rem .5rem 1rem', paddingLeft: '1rem', paddingRight: '1rem', borderRadius: 4}}>Start</button>
-                <button onClick={call} style={{padding: '.5rem 1rem .5rem 1rem', paddingLeft: '1rem', paddingRight: '1rem', borderRadius: 4}}>Call</button>
-                <button style={{padding: '.5rem 1rem .5rem 1rem', paddingLeft: '1rem', paddingRight: '1rem', borderRadius: 4}}>Hangup</button>
+                <button onClick={endStream} style={{padding: '.5rem 1rem .5rem 1rem', paddingLeft: '1rem', paddingRight: '1rem', borderRadius: 4}}>End</button>
             </div>
-            <input type="text" onChange={(e) => username.current = e.target.value} placeholder="username"/>
-            <button onClick={sendHello}>Say Hi</button>
         </div>
     );
 }

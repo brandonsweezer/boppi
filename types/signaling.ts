@@ -1,9 +1,13 @@
 export type SignalingMessage = {
     roomCode: string,
-    type: SingalingMessageType,
+    type: SignalingMessageType,
     user: string,
-    candidate?: RTCIceCandidate,
-    sdp?: RTCSessionDescription | null
+    candidate?: RTCIceCandidateInit | null,
+    sdp?: RTCSessionDescriptionInit | null
 }
 
-export type SingalingMessageType = 'new-ice-candidate' | 'offer' | 'answer'
+export enum SignalingMessageType {
+    iceCandidate = 'new-ice-candidate',
+    offer = 'offer',
+    answer = 'answer',
+}

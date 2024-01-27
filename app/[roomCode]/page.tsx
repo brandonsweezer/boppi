@@ -12,7 +12,7 @@ import { initializeSignalingChannel } from "../initializeSignalingChannel";
 export default function Join() {
     const params = useParams();
     const [roomCode, setRoomCode] = useState(`${params.roomCode}`);
-    const [username, setUsername] = useState(params.roomCode ? 'creepywatcher' : 'host');
+    const [username, setUsername] = useState('creepywatcher');
     const impolite = false;
 
     const [connectionStatus, setConnectionStatus] = useState('');

@@ -12,8 +12,7 @@ import { initializeSignalingChannel } from "../initializeSignalingChannel";
 
 
 export default function Host() {
-    const params = useSearchParams();
-    const [username, setUsername] = useState(params.get('roomCode') ? 'creepywatcher' : 'host');
+    const [username, setUsername] = useState('host');
     
     const impolite = false;
     const [makingOffer, setMakingOffer] = useState(false);

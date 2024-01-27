@@ -22,7 +22,7 @@ export default function V1() {
 
     const startStream = async function () {
         try {
-            signalingChannel.current = await initSignalingChannel();
+            signalingChannel.current = await initSignalingChannel(); // pusher
 
             const pc = initializeConnection();
             connection.current = pc;
@@ -163,8 +163,8 @@ export default function V1() {
                         console.log('recieving offer');
 
                         // offer collision exists if making offer or non-stable connection
-                        const offerCollision = connection.current.signalingState !== 'stable';
-                        ignoreOffer = impolite || offerCollision;
+                        const offerCollision = makingOffer || connection.current.signalingState !== 'stable';
+                        ignoreOffer = impolite && offerCollision;
                         if (ignoreOffer || !message.sdp) return;
 
                         try {

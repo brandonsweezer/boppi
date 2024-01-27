@@ -3,42 +3,62 @@ import { useEffect, useRef, useState } from "react"
 import adapter from "webrtc-adapter";
 import { Channel } from 'pusher-js';
 
-import { SignalingMessage } from "@/types/signaling";
+import { SignalingMessage, SignalingMessageType, EstablishingMessageType } from "@/types/signaling";
 import { useParams } from "next/navigation";
-import { initializeConnection } from "../initializeConnection";
-import { initializeSignalingChannel } from "../initializeSignalingChannel";
+import { initConnection } from "../../lib/helpers/initConnection";
+import { initSignalingChannel } from "../../lib/helpers/initSignalingChannel";
+import { sendMessage } from "../../lib/helpers/sendMessage";
 
 
 export default function Join() {
     const params = useParams();
-    const [roomCode, setRoomCode] = useState(`${params.roomCode}`);
     const [username, setUsername] = useState('creepywatcher');
-    const impolite = false;
+    const [roomCode, setRoomCode] = useState(`${params.roomCode}`);
 
-    const [connectionStatus, setConnectionStatus] = useState('');
+    // RTCPeerConnection Variables
+    const impolite = false;
+    const makingOffer = useRef<boolean>(false);
+
+    const connectionEstablished = useRef<Boolean>(false);
+    const [connectionStatus, setConnectionStatus] = useState('waiting for others to join session');
 
     const signalingChannel = useRef<Channel | null>(null);
     const remoteVideo = useRef<HTMLVideoElement>(null);
     const connection = useRef<RTCPeerConnection | null>(null);
 
-    const call = async function () {
-        setConnectionStatus('Joining stream...');
-        try {
-            setConnectionStatus('Initializing signaling channel...');
-            signalingChannel.current = await initializeSignalingChannel(sendMessage, connection, username, impolite, roomCode);
+    const initializeSignalingChannel = async function () {
+        signalingChannel.current = await initSignalingChannel(
+            setConnectionStatus,
+            connectionEstablished,
+            connection,
+            username,
+            impolite,
+            roomCode,
+            () => makingOffer.current,
+        );
+        await sendMessage({
+            user: username,
+            roomCode: roomCode,
+            type: SignalingMessageType.establisher,
+            establisherContent: EstablishingMessageType.ping
+        });
+    }
 
-            setConnectionStatus('Initializing peer connection...');
-            const pc = initializeConnection(sendMessage, remoteVideo, username, roomCode);
+    const join = async function () {
+        try {
+            // signalingChannel.current = await initSignalingChannel(
+            //     setConnectionStatus,
+            //     connectionEstablished,
+            //     connection,
+            //     username,
+            //     impolite,
+            //     roomCode,
+            // );
+
+            setConnectionStatus('ready to pair');
+            const pc = initConnection(remoteVideo, username, roomCode, makingOffer);
             connection.current = pc;
         } catch (e) { console.error(e) }
-    }
-    
-    const sendMessage = async (message: SignalingMessage) => {
-        return fetch('/api/signaling', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(message)
-        })
     }
 
     if (connection.current) {
@@ -48,10 +68,20 @@ export default function Join() {
             }
         };
     }
-    
 
     useEffect(() => {
-        call();
+        console.log('change to connectionEstablished detected', connectionEstablished.current);
+        if (connectionEstablished.current) join();
+
+        return () => {
+            // cleanup
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [connectionStatus]);
+
+    useEffect(() => {
+        // init pusher connection and send connection establishment message
+        initializeSignalingChannel();
 
         return () => {
             if (!signalingChannel.current) return;
@@ -60,6 +90,7 @@ export default function Join() {
             signalingChannel.current.unbind_all();
             signalingChannel.current.unsubscribe();
         }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
 
     return (

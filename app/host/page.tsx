@@ -5,21 +5,27 @@ import Pusher, { Channel } from 'pusher-js';
 
 import { v4 as uuid } from 'uuid'
 
-import { SignalingMessage, SignalingMessageType } from "@/types/signaling";
+import { SignalingMessage, SignalingMessageType, EstablishingMessageType } from "@/types/signaling";
 import { useSearchParams } from "next/navigation";
-import { initializeConnection } from "../initializeConnection";
-import { initializeSignalingChannel } from "../initializeSignalingChannel";
+import { initConnection } from "../../lib/helpers/initConnection";
+import { initSignalingChannel } from "../../lib/helpers/initSignalingChannel";
+import { sendMessage } from "../../lib/helpers/sendMessage";
+import { errorMonitor } from "stream";
 
 
 export default function Host() {
+    // RTCPeerConnection Variables
+    const impolite = true;
+    const makingOffer = useRef<boolean>(false);
+
     const [username, setUsername] = useState('host');
     
-    const impolite = false;
-    const [makingOffer, setMakingOffer] = useState(false);
-
     const signalingChannel = useRef<Channel | null>(null);
     const localVideo = useRef<HTMLVideoElement>(null);
     const connection = useRef<RTCPeerConnection | null>(null);
+
+    const connectionEstablished = useRef<Boolean>(false);
+    const [connectionStatus, setConnectionStatus] = useState('waiting for others to join session');
 
     const [roomCode, setRoomCode] = useState('');
 
@@ -29,55 +35,98 @@ export default function Host() {
         return roomcode;
     }
 
-    const startStream = async function () {
-        const roomcode = generateRoomCode();
+    const initializeSignalingChannel = async function (roomCode: string) {
+        signalingChannel.current = await initSignalingChannel(
+            setConnectionStatus,
+            connectionEstablished,
+            connection,
+            username,
+            impolite,
+            roomCode,
+            () => makingOffer.current,
+        );
+
+        console.log('channel init', roomCode)
+        await sendMessage({
+            user: username,
+            roomCode: roomCode,
+            type: SignalingMessageType.establisher,
+            establisherContent: EstablishingMessageType.ping
+        });
+    }
+
+    const initRTCPeerConnection = async function () {
         try {
-            signalingChannel.current = await initializeSignalingChannel(sendMessage, connection, username, impolite, roomcode);
-
-            const pc = initializeConnection(sendMessage, localVideo, username, roomcode);
+            const pc = initConnection(
+                localVideo,
+                username,
+                roomCode,
+                makingOffer,
+            );
             connection.current = pc;
-    
-            // const stream = await navigator.mediaDevices.getDisplayMedia({video: true, audio: true})
-            const stream = await navigator.mediaDevices.getDisplayMedia({
-                video: true,
-                audio: true,
-            })
-            const tracks = stream.getVideoTracks();
-            for (let i = 0; i < tracks.length; i++) {
-                tracks[i].applyConstraints({frameRate: {max: 60}})
+        } catch (err) { console.error(err) }
+    }
+
+    const startStream = async function () {
+        // const stream = await navigator.mediaDevices.getUserMedia({video: true, audio: false})
+        const stream = await navigator.mediaDevices.getDisplayMedia({
+            video: true,
+            audio: false,
+        })
+
+        const tracks = stream.getVideoTracks();
+        for (let i = 0; i < tracks.length; i++) {
+            tracks[i].applyConstraints({frameRate: {max: 60}})
+        }
+
+        const allTracks = stream.getTracks();
+        if (connection.current) {
+            console.log('connection exists while setting up video');
+            for (let i = 0; i < allTracks.length; i++) {
+                connection.current.addTrack(allTracks[i], stream);
             }
+        }
 
-            
-            stream.getTracks().forEach(track => pc.addTrack(track, stream))
-
-            if (!localVideo.current) return;
-            localVideo.current.srcObject = stream;
-        } catch (e) { console.error(e) }
-  }
+        if (!localVideo.current) return;
+        localVideo.current.srcObject = stream;
+    }
 
     const endStream = async function () {
-      console.log('ending');
-      if (connection.current) connection.current.close();
-      if (localVideo.current) localVideo.current.srcObject = null;
-  }
-    
-    const sendMessage = async (message: SignalingMessage) => {
-        return fetch('/api/signaling', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(message)
-        })
+        console.log('ending');
+        // if (connection.current) connection.current.close();
+        if (localVideo.current) localVideo.current.srcObject = null;
     }
 
     useEffect(() => {
+        console.log('change to connectionStatus detected', connectionEstablished.current, connection.current);
+        if (connectionEstablished.current && !connection.current) {
+            console.log('beginning to initpeer ocnnection')
+            initRTCPeerConnection();
+        }
+
         return () => {
+            // cleanup
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [connectionStatus]);
+
+    useEffect(() => {
+        const initRoomCode = generateRoomCode();
+        // init pusher connection and send connection establishment message
+        initializeSignalingChannel(initRoomCode);
+
+        return () => {
+            // end RTCPeerConnection
+            if (connection.current) connection.current.close();
+
             if (!signalingChannel.current) return;
 
-            console.log('cleaning up!');
+            // end Pusher channel
             signalingChannel.current.unbind_all();
             signalingChannel.current.unsubscribe();
         }
-    }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     return (
         <div style={{display: 'flex', flexDirection: 'column', gap: '1rem'}}>
@@ -89,6 +138,9 @@ export default function Host() {
             <div style={{display: 'flex', gap: '1rem', marginLeft: 'auto', marginRight: 'auto'}}>
                 <button onClick={startStream} style={{padding: '2rem', borderRadius: 4}}>Start Streaming</button>
                 <button onClick={endStream} style={{padding: '2rem', borderRadius: 4}}>Stop Streaming</button>
+            </div>
+            <div style={{display: 'flex', gap: '1rem', marginLeft: 'auto', marginRight: 'auto'}}>
+                <p>{connectionStatus}</p>
             </div>
             {roomCode && <div style={{display: 'flex', flexDirection: 'column', gap: '1rem', marginLeft: 'auto', marginRight: 'auto'}}>
                 <h3>Room Code:</h3>

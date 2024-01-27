@@ -12,7 +12,6 @@ const pusher = new Pusher({
 
 export async function POST(request: NextRequest) {
     const message = await request.json() as SignalingMessage;
-    console.log(message.type, '==============');
-    const res = await pusher.trigger('signaling', 'client-message', message)
+    const res = await pusher.trigger(message.roomCode, 'client-message', message)
     return NextResponse.json(res);
 }

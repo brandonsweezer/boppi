@@ -30,7 +30,7 @@ export default function V1() {
             // const stream = await navigator.mediaDevices.getDisplayMedia({video: true, audio: true})
             const stream = await navigator.mediaDevices.getUserMedia({
                 video: true,
-                audio: true
+                audio: false
             })
 
             
@@ -163,12 +163,10 @@ export default function V1() {
                         console.log('recieving offer');
 
                         // offer collision exists if making offer or non-stable connection
-                        const offerCollision = makingOffer || connection.current.signalingState !== 'stable';
-                        ignoreOffer = impolite && offerCollision;
+                        const offerCollision = connection.current.signalingState !== 'stable';
+                        ignoreOffer = impolite || offerCollision;
                         if (ignoreOffer || !message.sdp) return;
 
-                        console.log('init connection using agreed ice candidate')
-                        await connection.current.setRemoteDescription(message.sdp);
                         try {
                             // generates "perfect condition" answer
                             await connection.current.setLocalDescription();
@@ -176,21 +174,26 @@ export default function V1() {
                             await sendMessage({
                                 roomCode: '1',
                                 user: username.current,
-                                type: SignalingMessageType.offer,
+                                type: SignalingMessageType.answer,
                                 sdp: connection.current.localDescription
                             });
                         } catch (err) { console.log(err) }
                         break;
+                    case SignalingMessageType.answer:
+                        console.log('received an answer');
+                        if (!message.sdp) {console.log('no description on answer'); return};
+                        // set the remote description
+                        console.log('init connection using agreed ice candidate')
+                        await connection.current.setRemoteDescription(message.sdp);
+                        break;
                     case SignalingMessageType.iceCandidate:
                         console.log('__iceCandidate');
-
-                        // do nothing if still gathering ice candidates
-                        if (connection.current.iceGatheringState !== 'complete') return;
-
                         try {
-                            await connection.current.addIceCandidate(message.candidate ?? undefined);
+                            if (!message.candidate) {console.log('candidate: ', message.candidate); return;}
+                            await connection.current.addIceCandidate(message.candidate);
                         } catch (err) {
-                            if (!ignoreOffer) { throw err }
+                            console.log('error in __iceCandidate');
+                            throw err
                         }
                         break;
                 }

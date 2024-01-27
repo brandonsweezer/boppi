@@ -19,6 +19,10 @@ export default function Host() {
     const makingOffer = useRef<boolean>(false);
 
     const [username, setUsername] = useState('host');
+
+    const [xRes, setXRes] = useState(1920);
+    const [yRes, setYRes] = useState(1080);
+    const [fps, setFps] = useState(30);
     
     const signalingChannel = useRef<Channel | null>(null);
     const localVideo = useRef<HTMLVideoElement>(null);
@@ -76,7 +80,11 @@ export default function Host() {
 
         const tracks = stream.getVideoTracks();
         for (let i = 0; i < tracks.length; i++) {
-            tracks[i].applyConstraints({frameRate: {max: 60}})
+            tracks[i].applyConstraints({
+                frameRate: {max: fps},
+                width: { min: 640, ideal: xRes},
+                height: { min: 480, ideal: yRes},
+            })
         }
 
         const allTracks = stream.getTracks();
@@ -141,6 +149,20 @@ export default function Host() {
             </div>
             <div style={{display: 'flex', gap: '1rem', marginLeft: 'auto', marginRight: 'auto'}}>
                 <p>{connectionStatus}</p>
+            </div>
+            <div style={{display: 'flex'}}>
+                <div style={{display: 'flex', flexDirection: 'column', gap: '1rem', marginLeft: 'auto', marginRight: 'auto'}}>
+                    <label>Max Fps:</label>
+                    <input onChange={(e) => setFps(+e.target.value)} type="number" placeholder="Max FPS" />
+                </div>
+                <div style={{display: 'flex', flexDirection: 'column', gap: '1rem', marginLeft: 'auto', marginRight: 'auto'}}>
+                    <label>Max resolution x:</label>
+                    <input onChange={(e) => setXRes(+e.target.value)} type="number" placeholder="Max Width" />
+                </div>
+                <div style={{display: 'flex', flexDirection: 'column', gap: '1rem', marginLeft: 'auto', marginRight: 'auto'}}>
+                    <label>Max resolution y:</label>
+                    <input onChange={(e) => setYRes(+e.target.value)} type="number" placeholder="Max Width" />
+                </div>
             </div>
             {roomCode && <div style={{display: 'flex', flexDirection: 'column', gap: '1rem', marginLeft: 'auto', marginRight: 'auto'}}>
                 <h3>Room Code:</h3>

@@ -7,9 +7,9 @@ import { v4 as uuid } from 'uuid'
 
 import { SignalingMessage, SignalingMessageType, EstablishingMessageType } from "@/types/signaling";
 import { useSearchParams } from "next/navigation";
-import { initConnection } from "../../lib/helpers/initConnection";
-import { initSignalingChannel } from "../../lib/helpers/initSignalingChannel";
-import { sendMessage } from "../../lib/helpers/sendMessage";
+import { initConnection } from "@/lib/helpers/initConnection";
+import { initSignalingChannel } from "@/lib/helpers/initSignalingChannel";
+import { sendMessage } from "@/lib/helpers/sendMessage";
 import { errorMonitor } from "stream";
 
 

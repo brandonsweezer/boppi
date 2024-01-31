@@ -5,9 +5,9 @@ import { Channel } from 'pusher-js';
 
 import { SignalingMessage, SignalingMessageType, EstablishingMessageType } from "@/types/signaling";
 import { useParams } from "next/navigation";
-import { initConnection } from "../../lib/helpers/initConnection";
-import { initSignalingChannel } from "../../lib/helpers/initSignalingChannel";
-import { sendMessage } from "../../lib/helpers/sendMessage";
+import { initConnection } from "@/lib/helpers/initConnection";
+import { initSignalingChannel } from "@/lib/helpers/initSignalingChannel";
+import { sendMessage } from "@/lib/helpers/sendMessage";
 
 
 export default function Join() {

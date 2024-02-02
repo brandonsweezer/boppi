@@ -6,7 +6,7 @@ import { MongoClient, ServerApiVersion } from "mongodb";
 import { NextRequest, NextResponse } from "next/server";
 
 
-const client = new MongoClient(process.env.MONGO_URL ?? '', {
+const client = new MongoClient(process.env.MONGODB_URI ?? '', {
     serverApi: {
         version: ServerApiVersion.v1,
         strict: true,

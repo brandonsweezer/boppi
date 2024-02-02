@@ -9,8 +9,8 @@ export default function Login() {
     const [password, setPassword] = useState('');
     const [error, setError] = useState(false);
 
-    const login = async () => {
-        const res = await fetch('/api/auth/login', {
+    const login = () => {
+        fetch('/api/auth/login', {
             method: 'POST',
             cache: 'no-cache',
             headers: {'Content-Type': 'application/json'},
@@ -18,12 +18,13 @@ export default function Login() {
                 username,
                 password
             })
+        }).then((res) => {
+            if (res.status === 200) {
+                router.replace('/');
+            } else {
+                setError(true);
+            }
         })
-        if (res.status === 200) {
-            router.replace('/host');
-        } else {
-            setError(true);
-        }
     }
 
     return (

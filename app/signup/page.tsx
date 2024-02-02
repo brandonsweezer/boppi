@@ -7,9 +7,10 @@ export default function SignUp() {
     const router = useRouter();
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
+    const [error, setError] = useState<number>();
 
-    const login = async () => {
-        const result = await fetch('/api/auth/signup', {
+    const signup = async () => {
+        fetch('/api/auth/signup', {
             method: 'POST',
             cache: 'no-cache',
             headers: {'Content-Type': 'application/json'},
@@ -17,8 +18,13 @@ export default function SignUp() {
                 username,
                 password
             })
+        }).then((res) => {
+            if (res.status === 200) {
+                router.replace('/');
+            } else {
+                setError(res.status);
+            }
         })
-        console.log(result);
     }
 
     return (
@@ -29,7 +35,8 @@ export default function SignUp() {
                 <Input type="text" placeholder="email" onChange={(e) => setUsername(e.target.value)}/>
                 <Text>Password:</Text>
                 <Input type="password" placeholder="password" onChange={(e) => setPassword(e.target.value)}/>
-                <Button onClick={login}>Sign Up</Button>
+                <Button onClick={signup}>Sign Up</Button>
+                {error && <Text color={'red'}>Please try again</Text>}
             </Box>
             <Divider />
             <Box display={'flex'} flexDirection={'column'} gap={2}>

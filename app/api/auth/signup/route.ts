@@ -47,8 +47,8 @@ export async function POST(request: NextRequest) {
         response.cookies.set('token', token)
         return response
     } catch (err) {
-        return NextResponse.redirect(new URL('/login/', request.url))
-        // no user, reject
+        console.log(err);
+        return NextResponse.json(err, {status: 401})
     } finally {
         await client.close();
     }

@@ -1,7 +1,7 @@
 import { Providers } from "./providers"
 
 export const metadata = {
-  title: 'Lookie',
+  title: 'boppi.tv',
   description: 'Stream low latency video',
 }
 

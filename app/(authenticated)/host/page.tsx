@@ -16,9 +16,8 @@ import { errorMonitor } from "stream";
 export default function Host() {
     // RTCPeerConnection Variables
     const impolite = true;
+    const username = 'host';
     const makingOffer = useRef<boolean>(false);
-
-    const [username, setUsername] = useState('host');
 
     const [xRes, setXRes] = useState(1920);
     const [yRes, setYRes] = useState(1080);
@@ -27,6 +26,7 @@ export default function Host() {
     const signalingChannel = useRef<Channel | null>(null);
     const localVideo = useRef<HTMLVideoElement>(null);
     const connection = useRef<RTCPeerConnection | null>(null);
+    const mediaStream = useRef<MediaStream | null>(null);
 
     const connectionEstablished = useRef<Boolean>(false);
     const [connectionStatus, setConnectionStatus] = useState('waiting for others to join session');
@@ -66,49 +66,79 @@ export default function Host() {
                 username,
                 roomCode,
                 makingOffer,
+                setConnectionStatus,
             );
             connection.current = pc;
         } catch (err) { console.error(err) }
     }
+    
+    if (connection.current) {
+        connection.current.onconnectionstatechange = function () {
+            if (connection.current) {
+                console.log('jeez louise!! setting connectionStatus to', connection.current.connectionState)
+                setConnectionStatus(connection.current.connectionState);
+            }  
+            // handle disconnection
+            if (connection.current && connection.current.connectionState === 'disconnected') {
+                console.log('connection terminated, disconnecting');
+                connection.current = null;
+            }
+        }
+    }
 
     const startStream = async function () {
-        // const stream = await navigator.mediaDevices.getUserMedia({video: true, audio: false})
-        const stream = await navigator.mediaDevices.getDisplayMedia({
+        // restart connection if ended previously
+        if (!connection.current) await initRTCPeerConnection();
+
+        // if mediaStream already exists, handle and return
+        if (
+            mediaStream.current
+            && localVideo.current
+            && !localVideo.current.srcObject
+        ) {
+            console.log('rly weird case lol')
+            localVideo.current.srcObject = mediaStream.current;
+        }
+
+        // get video if it doesn't exist
+        // if (!mediaStream.current) mediaStream.current = await navigator.mediaDevices.getUserMedia({
+        //     video: true,
+        //     audio: false,
+        // })
+        if (!mediaStream.current) mediaStream.current = await navigator.mediaDevices.getDisplayMedia({
             video: true,
             audio: false,
         })
 
-        const tracks = stream.getVideoTracks();
-        for (let i = 0; i < tracks.length; i++) {
-            tracks[i].applyConstraints({
-                frameRate: {max: fps},
-                width: { min: 640, ideal: xRes},
-                height: { min: 480, ideal: yRes},
-            })
-        }
+        const tracks = mediaStream.current.getTracks();
+        for (let i=0; i<tracks.length; i++) {
+            if (tracks[i].kind === 'video') tracks[i].applyConstraints({
+                frameRate: { max: fps },
+                width: { min: 640, ideal: xRes },
+                height: { min: 480, ideal: yRes },
+            });
+            // apply audio constraints here
 
-        const allTracks = stream.getTracks();
-        if (connection.current) {
-            console.log('connection exists while setting up video');
-            for (let i = 0; i < allTracks.length; i++) {
-                connection.current.addTrack(allTracks[i], stream);
-            }
+            if (connection.current) connection.current.addTrack(tracks[i], mediaStream.current);
         }
 
         if (!localVideo.current) return;
-        localVideo.current.srcObject = stream;
+        localVideo.current.srcObject = mediaStream.current;
     }
 
     const endStream = async function () {
         console.log('ending');
-        // if (connection.current) connection.current.close();
-        if (localVideo.current) localVideo.current.srcObject = null;
+        if (connection.current) {
+            connection.current.close(); // close connection
+            connection.current = null; // delete connection object
+        }
+        setConnectionStatus('disconnected'); // ui
     }
 
     useEffect(() => {
         console.log('change to connectionStatus detected', connectionEstablished.current, connection.current);
         if (connectionEstablished.current && !connection.current) {
-            console.log('beginning to initpeer ocnnection')
+            console.log('beginning to initpeer connection')
             initRTCPeerConnection();
         }
 
@@ -138,10 +168,8 @@ export default function Host() {
 
     return (
         <div style={{display: 'flex', flexDirection: 'column', gap: '1rem'}}>
-            <div style={{display: 'flex', marginLeft: 'auto', marginRight: 'auto', gap: '1rem'}}>
-              <div style={{display: 'flex', flexDirection: 'column'}}>
-                    <video ref={localVideo} style={{ width: '100%', backgroundColor: '#615d5d', borderRadius: '2px'}} autoPlay></video>
-                </div>
+            <div style={{display: 'flex', gap: '1rem'}}>
+                <video ref={localVideo} style={{ width: '100%', backgroundColor: '#615d5d', borderRadius: '2px'}} autoPlay></video>
             </div>
             <div style={{display: 'flex', gap: '1rem', marginLeft: 'auto', marginRight: 'auto'}}>
                 <button onClick={startStream} style={{padding: '2rem', borderRadius: 4}}>Start Streaming</button>

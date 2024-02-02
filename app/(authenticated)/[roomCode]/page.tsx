@@ -46,32 +46,46 @@ export default function Join() {
 
     const join = async function () {
         try {
-            // signalingChannel.current = await initSignalingChannel(
-            //     setConnectionStatus,
-            //     connectionEstablished,
-            //     connection,
-            //     username,
-            //     impolite,
-            //     roomCode,
-            // );
-
-            setConnectionStatus('ready to pair');
-            const pc = initConnection(remoteVideo, username, roomCode, makingOffer);
+            const pc = initConnection(
+                remoteVideo,
+                username,
+                roomCode,
+                makingOffer,
+                setConnectionStatus,
+            );
             connection.current = pc;
         } catch (e) { console.error(e) }
     }
 
     if (connection.current) {
-        connection.current.oniceconnectionstatechange = function () {
-            if (connection.current) {
-                setConnectionStatus(connection.current.iceConnectionState)
+        connection.current.onconnectionstatechange = function () {
+            // handle disconnection
+            if (connection.current && connection.current.connectionState === 'disconnected') {
+                console.log('connection terminated, disconnecting');
+                setConnectionStatus('disconnected');
+                connection.current = null;
+                if (remoteVideo.current) remoteVideo.current.srcObject = null
             }
-        };
+        }
+    }
+
+    const disconnect = function () {
+        if (connection.current) {
+            connection.current.close(); // close connection
+            connection.current = null; // delete connection object
+        }
+        setConnectionStatus('disconnected'); // ui
+        if (remoteVideo.current) remoteVideo.current.srcObject = null // ui
     }
 
     useEffect(() => {
         console.log('change to connectionEstablished detected', connectionEstablished.current);
-        if (connectionEstablished.current) join();
+        if (connection.current && connection.current.connectionState) console.log(connection.current.connectionState);
+        if (connectionEstablished.current && !connection.current) {
+            // todo: this will kick off and fail when the host disconnects... better way to handle it?
+            console.log('joining')
+            join();
+        }
 
         return () => {
             // cleanup
@@ -95,13 +109,11 @@ export default function Join() {
 
     return (
         <div style={{display: 'flex', flexDirection: 'column', gap: '1rem'}}>
-            <h1>{username}</h1>
-            <h1>{params.roomCode}</h1>
-            <div style={{display: 'flex', marginLeft: 'auto', marginRight: 'auto', gap: '1rem'}}>
-                <div style={{display: 'flex', flexDirection: 'column'}}>
-                    <h2 style={{marginLeft: 'auto', marginRight: 'auto'}}>Remote Stream</h2>
-                    <video ref={remoteVideo} style={{ width: '100%', backgroundColor: '#615d5d', borderRadius: '2px'}} autoPlay></video>
-                </div>
+            <div style={{display: 'flex', gap: '1rem'}}>
+                <video ref={remoteVideo} style={{ width: '100%', backgroundColor: '#615d5d', borderRadius: '2px'}} autoPlay></video>
+            </div>
+            <div style={{display: 'flex', gap: '1rem', marginLeft: 'auto', marginRight: 'auto'}}>
+                <button onClick={disconnect} style={{padding: '2rem', borderRadius: 4}}>Disconnect</button>
             </div>
             <div style={{display: 'flex', gap: '1rem', marginLeft: 'auto', marginRight: 'auto'}}>
                 <p>{connectionStatus}</p>

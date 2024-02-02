@@ -8,15 +8,16 @@ export const initConnection = function (
     username: string,
     roomCode: string,
     makingOffer: MutableRefObject<Boolean>,
+    setConnectionStatus: (newValue: string) => void,
 ) {
     const config: RTCConfiguration = {
         iceServers: [
-            // {
-            //     urls: [
-            //         // process.env.NEXT_PUBLIC_STUN_SERVER_1 ?? '',
-            //         process.env.NEXT_PUBLIC_STUN_SERVER_2 ?? '',
-            //     ]
-            // },
+            {
+                urls: [
+                    // process.env.NEXT_PUBLIC_STUN_SERVER_1 ?? '',
+                    process.env.NEXT_PUBLIC_STUN_SERVER_2 ?? '',
+                ]
+            },
             {
                 urls: process.env.NEXT_PUBLIC_TURN_URL ?? '',
                 username: process.env.NEXT_PUBLIC_TURN_USERNAME,
@@ -50,7 +51,7 @@ export const initConnection = function (
     }
 
     pc.onicecandidate = async function (event) {
-        console.log('sending ice candidate')
+        // console.log('sending ice candidate')
         try {
             await sendMessage({
                 roomCode: roomCode,
@@ -61,35 +62,16 @@ export const initConnection = function (
         } catch (err) { console.error(err) }
     }
 
-    pc.onsignalingstatechange = function () {
-        console.log('signaling state change: ', pc?.signalingState);
-    }
+    // pc.onsignalingstatechange = function () {
+    //     console.log('signaling state change: ', pc?.signalingState);
+    // }
 
     pc.onconnectionstatechange = function () {
         console.log('connection state change: ', pc?.connectionState);
+        setConnectionStatus(pc.connectionState);
+        // handle disconnection
+        if (pc.connectionState === 'disconnected') console.log('connection terminated, disconnecting');
     }
-
-    pc.oniceconnectionstatechange = function () {
-        console.log(`ICE connection state change: ${pc?.iceConnectionState}`);
-        if (pc && pc.iceConnectionState === 'failed') {
-          console.error('ICE Connection Failed');
-          // Notify the user about the failure
-        }
-    };
-
-    pc.onicegatheringstatechange = async function () {
-        // generate connection offer with agreed ice candidate
-        if (pc && pc.iceGatheringState === 'complete') {
-            // console.log('sending real offer')
-            // Send localDescription to the other peer using your signaling mechanism
-            // await sendMessage({
-            //     roomCode: roomCode,
-            //     type: SignalingMessageType.offer,
-            //     user: username,
-            //     sdp: pc.localDescription
-            // })
-        }
-     };
 
     pc.ontrack = function (event) {
         if (!remoteVideo.current) return;

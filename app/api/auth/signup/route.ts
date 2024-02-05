@@ -1,55 +1,40 @@
 import hash from "@/lib/auth/hash";
 import issueToken from "@/lib/auth/issueToken";
-import { User } from "@/types/user";
+import { userRepository } from "@/lib/db/container";
+import { NewUserRequest } from "@/types/user";
 
-import { MongoClient, ServerApiVersion } from "mongodb";
 import { NextRequest, NextResponse } from "next/server";
 
 
-const client = new MongoClient(process.env.MONGODB_URI ?? '', {
-    serverApi: {
-        version: ServerApiVersion.v1,
-        strict: true,
-        deprecationErrors: true,
-    }
-})
-
 export async function POST(request: NextRequest) {
-    console.log('signing up!');
-    const { username, password } = await request.json();
-    const hashedPassword = hash(password); 
-    // verify with database
     try {
-        // lookup user from db
-        await client.connect();
-        console.log('connected to db');
-        const existingUser = await client.db('lookie').collection('users').findOne(
-            {
-                username,
-                password: hashedPassword
-            }
-        )
-        console.log(existingUser);
+        const { email, password } = await request.json();
+        if (!email || !password) {
+            return NextResponse.json('email or password missing', { status: 400 })
+        }
+
+        const hashedPassword = hash(password); 
+
+        const userExists = await userRepository.exists({ email })
         // if user exists, redirect to login.
-        if (existingUser !== null) {
-            throw new Error('User already exists!')
+        if (userExists) {
+            return NextResponse.json('User already exists!', { status: 409 })
         }
         // otherwise, create user
-        const newUser = await client.db('lookie').collection('users').insertOne({
-            username,
+        const newUserRequest: NewUserRequest = {
+            email: email,
             password: hashedPassword
-        })
+        }
+        const newUser = await userRepository.create(newUserRequest)
+        
         // issue JWT token on success
-        const token = issueToken(newUser as unknown as User)
+        const token = issueToken(newUser)
 
-        // return token
-        const response = NextResponse.json('signed up', {status: 200})
+        const response = NextResponse.json('signed up', { status: 200 })
         response.cookies.set('token', token)
         return response
     } catch (err) {
         console.log('sign up failed', err);
-        return NextResponse.json(err, {status: 401})
-    } finally {
-        await client.close();
+        return NextResponse.json(err, { status: 401 })
     }
 }

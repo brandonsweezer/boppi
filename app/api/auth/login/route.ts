@@ -38,12 +38,12 @@ export async function POST(request: NextRequest) {
         const token = issueToken(user as unknown as User)
         console.log(token);
         // return token
-        const response = NextResponse.redirect(new URL('/host', request.url))
+        const response = NextResponse.json('logged in', {status: 200})
         response.cookies.set('token', token)
         return response;
     } catch (err) {
-        console.log(err);
-        return NextResponse.json(err, {status: 401})
+        console.log('sign in failed', err);
+        return NextResponse.json('Sign in Failed', {status: 401})
         // no user, reject
     } finally {
         try {

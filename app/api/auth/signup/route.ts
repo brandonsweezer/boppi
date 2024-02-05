@@ -43,11 +43,11 @@ export async function POST(request: NextRequest) {
         const token = issueToken(newUser as unknown as User)
 
         // return token
-        const response = NextResponse.redirect(new URL('/host', request.url))
+        const response = NextResponse.json('signed up', {status: 200})
         response.cookies.set('token', token)
         return response
     } catch (err) {
-        console.log(err);
+        console.log('sign up failed', err);
         return NextResponse.json(err, {status: 401})
     } finally {
         await client.close();

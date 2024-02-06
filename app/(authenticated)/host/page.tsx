@@ -11,6 +11,7 @@ import { initConnection } from "@/lib/helpers/initConnection";
 import { initSignalingChannel } from "@/lib/helpers/initSignalingChannel";
 import { sendMessage } from "@/lib/helpers/sendMessage";
 import { errorMonitor } from "stream";
+import { Box, Button, Input, Text } from "@chakra-ui/react";
 
 
 export default function Host() {
@@ -167,35 +168,35 @@ export default function Host() {
     }, []);
 
     return (
-        <div style={{display: 'flex', flexDirection: 'column', gap: '1rem'}}>
-            <div style={{display: 'flex', gap: '1rem'}}>
+        <Box style={{display: 'flex', flexDirection: 'column', gap: '1rem'}}>
+            <Box style={{display: 'flex', gap: '1rem'}}>
                 <video ref={localVideo} style={{ width: '100%', backgroundColor: '#615d5d', borderRadius: '2px'}} autoPlay></video>
-            </div>
-            <div style={{display: 'flex', gap: '1rem', marginLeft: 'auto', marginRight: 'auto'}}>
-                <button onClick={startStream} style={{padding: '2rem', borderRadius: 4}}>Start Streaming</button>
-                <button onClick={endStream} style={{padding: '2rem', borderRadius: 4}}>Stop Streaming</button>
-            </div>
-            <div style={{display: 'flex', gap: '1rem', marginLeft: 'auto', marginRight: 'auto'}}>
-                <p>{connectionStatus}</p>
-            </div>
-            <div style={{display: 'flex'}}>
-                <div style={{display: 'flex', flexDirection: 'column', gap: '1rem', marginLeft: 'auto', marginRight: 'auto'}}>
-                    <label>Max Fps:</label>
-                    <input onChange={(e) => setFps(+e.target.value)} type="number" placeholder="Max FPS" />
-                </div>
-                <div style={{display: 'flex', flexDirection: 'column', gap: '1rem', marginLeft: 'auto', marginRight: 'auto'}}>
-                    <label>Max resolution x:</label>
-                    <input onChange={(e) => setXRes(+e.target.value)} type="number" placeholder="Max Width" />
-                </div>
-                <div style={{display: 'flex', flexDirection: 'column', gap: '1rem', marginLeft: 'auto', marginRight: 'auto'}}>
-                    <label>Max resolution y:</label>
-                    <input onChange={(e) => setYRes(+e.target.value)} type="number" placeholder="Max Width" />
-                </div>
-            </div>
-            {roomCode && <div style={{display: 'flex', flexDirection: 'column', gap: '1rem', marginLeft: 'auto', marginRight: 'auto'}}>
-                <h3>Room Code:</h3>
-                <h1>{roomCode}</h1>
-            </div>}
-        </div>
+            </Box>
+            {roomCode && <Box style={{display: 'flex', flexDirection: 'column', gap: '1rem', marginLeft: 'auto', marginRight: 'auto', textAlign: 'center'}}>
+                <Text>Room Code:</Text>
+                <Text fontSize={'2xl'}>{roomCode}</Text>
+            </Box>}
+            <Box style={{display: 'flex', gap: '1rem', marginLeft: 'auto', marginRight: 'auto'}}>
+                <Button onClick={startStream} style={{padding: '2rem', borderRadius: 4}}>Start Streaming</Button>
+                <Button onClick={endStream} style={{padding: '2rem', borderRadius: 4}}>Stop Streaming</Button>
+            </Box>
+            <Box style={{display: 'flex', gap: '1rem', marginLeft: 'auto', marginRight: 'auto'}}>
+                <Text>{connectionStatus}</Text>
+            </Box>
+            <Box style={{display: 'flex'}}>
+                <Box style={{display: 'flex', flexDirection: 'column', gap: '1rem', marginLeft: 'auto', marginRight: 'auto'}}>
+                    <Text>Max Fps:</Text>
+                    <Input onChange={(e) => setFps(+e.target.value)} type="number" placeholder="Max FPS" />
+                </Box>
+                <Box style={{display: 'flex', flexDirection: 'column', gap: '1rem', marginLeft: 'auto', marginRight: 'auto'}}>
+                    <Text>Max resolution x:</Text>
+                    <Input onChange={(e) => setXRes(+e.target.value)} type="number" placeholder="Max Width" />
+                </Box>
+                <Box style={{display: 'flex', flexDirection: 'column', gap: '1rem', marginLeft: 'auto', marginRight: 'auto'}}>
+                    <Text>Max resolution y:</Text>
+                    <Input onChange={(e) => setYRes(+e.target.value)} type="number" placeholder="Max Width" />
+                </Box>
+            </Box>
+        </Box>
     );
 }

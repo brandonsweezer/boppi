@@ -8,6 +8,7 @@ import { useParams } from "next/navigation";
 import { initConnection } from "@/lib/helpers/initConnection";
 import { initSignalingChannel } from "@/lib/helpers/initSignalingChannel";
 import { sendMessage } from "@/lib/helpers/sendMessage";
+import { Box, Button, Text } from "@chakra-ui/react";
 
 
 export default function Join() {
@@ -108,16 +109,16 @@ export default function Join() {
     }, [])
 
     return (
-        <div style={{display: 'flex', flexDirection: 'column', gap: '1rem'}}>
-            <div style={{display: 'flex', gap: '1rem'}}>
+        <Box style={{display: 'flex', flexDirection: 'column', gap: '1rem'}}>
+            <Box style={{display: 'flex', gap: '1rem'}}>
                 <video ref={remoteVideo} style={{ width: '100%', backgroundColor: '#615d5d', borderRadius: '2px'}} autoPlay></video>
-            </div>
-            <div style={{display: 'flex', gap: '1rem', marginLeft: 'auto', marginRight: 'auto'}}>
-                <button onClick={disconnect} style={{padding: '2rem', borderRadius: 4}}>Disconnect</button>
-            </div>
-            <div style={{display: 'flex', gap: '1rem', marginLeft: 'auto', marginRight: 'auto'}}>
-                <p>{connectionStatus}</p>
-            </div>
-        </div>
+            </Box>
+            <Box style={{display: 'flex', gap: '1rem', marginLeft: 'auto', marginRight: 'auto'}}>
+                <Button onClick={disconnect} style={{padding: '2rem', borderRadius: 4}}>Disconnect</Button>
+            </Box>
+            <Box style={{display: 'flex', gap: '1rem', marginLeft: 'auto', marginRight: 'auto'}}>
+                <Text>{connectionStatus}</Text>
+            </Box>
+        </Box>
     );
 }

@@ -1,7 +1,8 @@
 'use client'
 import { Box, Button, Divider, Heading, Input, Spinner, Text } from "@chakra-ui/react";
+import Cookies from "js-cookie";
 import { useRouter } from "next/navigation";
-import { useState } from "react"
+import { useEffect, useState } from "react"
 
 export default function Login() {
     const router = useRouter();
@@ -32,6 +33,11 @@ export default function Login() {
             }
         })
     }
+
+    useEffect(() => {
+        Cookies.remove('token');
+        Cookies.remove('email');
+    }, []);
 
     return (
         <Box display={'flex'} flexDir={'column'} p={4} gap={4} maxWidth={'50%'} ml={'auto'} mr={'auto'}>

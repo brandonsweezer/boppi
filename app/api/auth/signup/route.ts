@@ -1,3 +1,4 @@
+import createJWTResponse from "@/lib/auth/createJWTResponse";
 import hash from "@/lib/auth/hash";
 import issueToken from "@/lib/auth/issueToken";
 import { userRepository } from "@/lib/db/container";
@@ -27,11 +28,7 @@ export async function POST(request: NextRequest) {
         }
         const newUser = await userRepository.create(newUserRequest)
         
-        // issue JWT token on success
-        const token = issueToken(newUser)
-
-        const response = NextResponse.json('signed up', { status: 200 })
-        response.cookies.set('token', token)
+        const response = createJWTResponse(newUser, 'signed up', { status: 200 })
         return response
     } catch (err) {
         console.log('sign up failed', err);

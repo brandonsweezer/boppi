@@ -3,6 +3,7 @@ import issueToken from "@/lib/auth/issueToken";
 import { User } from "@/types/user";
 import { NextRequest, NextResponse } from "next/server";
 import { userRepository } from "@/lib/db/container";
+import createJWTResponse from "@/lib/auth/createJWTResponse";
 
 export async function POST(request: NextRequest) {
     try {
@@ -16,11 +17,8 @@ export async function POST(request: NextRequest) {
         if (user === null) {
             return NextResponse.json('Sign in Failed', { status: 401 })
         }
-        // issue JWT token on success
-        const token = issueToken(user as unknown as User)
 
-        const response = NextResponse.json('logged in', { status: 200 })
-        response.cookies.set('token', token)
+        const response = createJWTResponse(user, 'logged in', { status: 200 })
         return response;
     } catch (err) {
         // no user, reject

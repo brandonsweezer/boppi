@@ -24,11 +24,12 @@ export async function POST(request: NextRequest) {
         // otherwise, create user
         const newUserRequest: NewUserRequest = {
             email: email,
-            password: hashedPassword
+            password: hashedPassword,
+            friendIds: []
         }
         const newUser = await userRepository.create(newUserRequest)
         
-        const response = createJWTResponse(newUser, 'signed up', { status: 200 })
+        const response = createJWTResponse(newUser, 'signed up', { status: 201 })
         return response
     } catch (err) {
         console.log('sign up failed', err);

@@ -1,5 +1,6 @@
 import { MongoClient, ServerApiVersion } from "mongodb";
 import { MongoDBUserRepository } from "./user";
+import { MongoDBMessageRepository } from "./message";
 
 const client = new MongoClient(process.env.MONGODB_URI ?? '', {
     serverApi: {
@@ -17,6 +18,7 @@ export interface Repository<T, K, N> {
     delete?(): Promise<T>;
 }
 
-const userRepository = new MongoDBUserRepository({mongoClient: client});
+const userRepository = new MongoDBUserRepository({ mongoClient: client });
+const messageRepository = new MongoDBMessageRepository({ mongoClient: client });
 
-export { userRepository }
+export { userRepository, messageRepository }

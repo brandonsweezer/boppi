@@ -12,7 +12,7 @@ export interface UserRepository extends Repository<User, string, NewUserRequest>
 }
 
 export class MongoDBUserRepository implements UserRepository {
-    client: MongoClient;
+    private client: MongoClient;
 
     constructor({ mongoClient }: { mongoClient: MongoClient }) {
         this.client = mongoClient;

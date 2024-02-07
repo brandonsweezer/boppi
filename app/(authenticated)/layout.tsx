@@ -2,7 +2,7 @@ import { Box, Button, Divider, Text } from "@chakra-ui/react";
 import Sidebar from "./Sidebar";
 
 
-export default function ({
+export default function MainLayout({
     children,
 }: {
     children: React.ReactNode;

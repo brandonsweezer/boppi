@@ -12,7 +12,7 @@ export default async function (request: NextRequest) {
             throw new Error('invalid jwt')
         }
         
-        return NextResponse.next(payload);
+        return NextResponse.next();
     } catch (err) {
         console.log('failed to verify JWT', err);
         return NextResponse.redirect(new URL('/login', request.url))

@@ -45,7 +45,7 @@ export default function FriendSection({ user, friendRequests }: { user: User, fr
             <List>
                 {friendRequests.map((request) => {
                     return (
-                        <ListItem textAlign={'center'} display={'flex'} gap={2} p={4}>
+                        <ListItem key={request._id} textAlign={'center'} display={'flex'} gap={2} p={4}>
                             <Text>
                                 {request.content}
                             </Text>
@@ -78,7 +78,7 @@ export default function FriendSection({ user, friendRequests }: { user: User, fr
                 {!user.friendIds && <Text>{"No friends :-("}</Text>}
                 {user.friendIds?.map((friend) => {
                     return (
-                        <ListItem>
+                        <ListItem key={friend.id}>
                             <Text fontSize={'lg'}>
                                 {friend.name} - {friend.id}
                             </Text>

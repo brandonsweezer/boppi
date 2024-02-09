@@ -5,10 +5,15 @@ import Pusher, { Channel } from 'pusher-js';
 
 import { useRouter } from "next/navigation";
 import { Box, Button, Divider, Input, Text } from "@chakra-ui/react";
+import FriendSection from "./FriendSection";
+import { User } from "@/types/user";
+import { Message, MessageType } from "@/types/message";
 
 export default function Home() {
   const router = useRouter();
   const [roomCode, setRoomCode] = useState('');
+  const [user, setUser] = useState<User>();
+  const [friendRequests, setFriendRequests] = useState<Message[]>([]);
 
   const goToRoom = () => {
     router.push(`/${roomCode}`)
@@ -17,6 +22,31 @@ export default function Home() {
   const host = () => {
     router.push(`/host`)
   }
+
+  const getUser = async () => {
+    const res = await fetch('/api/users/me', {
+      method: 'GET',
+    })
+    if (res.status === 200) {
+      const user = await res.json();
+      setUser(user);
+    }
+  }
+
+  const getFriendRequests = async () => {
+    const res = await fetch('/api/users/me/friendRequests', {
+      method: 'GET',
+    })
+    if (res.status === 200) {
+      const friendRequests = await res.json();
+      setFriendRequests(friendRequests);
+    }
+  }
+
+  useEffect(() => {
+    getUser();
+    getFriendRequests();
+  }, [])
   
   return (
       <Box display={'flex'} flexDir={'column'} textAlign={'center'} gap={8} h={'100%'}>
@@ -35,6 +65,7 @@ export default function Home() {
             </Box>
           </Box>
           <Divider />
+          {user && <FriendSection user={user} friendRequests={friendRequests} />}
       </Box>
   );
 }

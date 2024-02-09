@@ -15,7 +15,7 @@ export interface Repository<T, K, N> {
     readById?(id: K): Promise<T>;
     create?(newObjectRequest: N): Promise<T>;
     update?(newObject: T): Promise<T>;
-    delete?(): Promise<T>;
+    delete?(id: K): Promise<boolean>;
 }
 
 const userRepository = new MongoDBUserRepository({ mongoClient: client });

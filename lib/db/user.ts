@@ -86,7 +86,7 @@ export class MongoDBUserRepository implements UserRepository {
     async create(newUserRequest: NewUserRequest): Promise<User> {
         try {
             await this.client.connect();
-            const { acknowledged, insertedId } = await this.client.db('lookie').collection('users').insertOne(newUserRequest)
+            const { acknowledged, insertedId } = await this.client.db(APP_DB_NAME).collection(USER_COLLECTION_NAME).insertOne(newUserRequest)
             if (!acknowledged) {
                 console.log('write request not acknowledged!', insertedId);
             }
@@ -101,6 +101,33 @@ export class MongoDBUserRepository implements UserRepository {
                 throw new Error('failed to close mongo client');
             }
         }
-        
+    }
+
+    async update(newObject: User): Promise<User> {
+        try {
+            await this.client.connect();
+            const objectId = new ObjectId(newObject._id)
+            const { acknowledged, modifiedCount } = await this.client.db(APP_DB_NAME).collection(USER_COLLECTION_NAME).updateOne({
+                _id: objectId
+            }, {
+                $set: {
+                    'email': newObject.email,
+                    'friendIds': newObject.friendIds,
+                }
+            })
+            if (!acknowledged) {
+                console.log('write request not acknowledged!', objectId);
+            }
+            const user = await this.readById(objectId.toString());
+            return user;
+        } catch (e) {
+            throw new Error(`failed when accessing user db ${e}`)
+        } finally {
+            try {
+                await this.client.close();
+            } catch (e) {
+                throw new Error('failed to close mongo client');
+            }
+        }
     }
 }

@@ -49,8 +49,8 @@ export default function FriendSection({ user, friendRequests }: { user: User, fr
                             <Text>
                                 {request.content}
                             </Text>
-                            <Button onClick={() => handleFriendRequest(request._id, true)}>Accept</Button>
-                            <Button onClick={() => handleFriendRequest(request._id, false)}>Decline</Button>
+                            <Button isLoading={handling} onClick={() => handleFriendRequest(request._id, true)}>Accept</Button>
+                            <Button isLoading={handling} onClick={() => handleFriendRequest(request._id, false)}>Decline</Button>
                         </ListItem>
                     )
                 })}

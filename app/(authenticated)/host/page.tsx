@@ -1,20 +1,65 @@
 "use client"
-import { useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import adapter from "webrtc-adapter";
 import Pusher, { Channel } from 'pusher-js';
 
 import { v4 as uuid } from 'uuid'
 
 import { SignalingMessage, SignalingMessageType, EstablishingMessageType } from "@/types/signaling";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams, useRouter } from "next/navigation";
 import { initConnection } from "@/lib/helpers/initConnection";
 import { initSignalingChannel } from "@/lib/helpers/initSignalingChannel";
 import { sendMessage } from "@/lib/helpers/sendMessage";
 import { errorMonitor } from "stream";
 import { Box, Button, Input, Text } from "@chakra-ui/react";
+import { NewSessionRequest, Session } from "@/types/session";
 
 
 export default function Host() {
+    const searchParams = useSearchParams();
+    const router = useRouter();
+    const pathname = usePathname();
+    const [sessionId, setSessionId] = useState<string>(`${searchParams.get('sessionId') ?? ''}`);
+    const [session, setSession] = useState<Session>();
+
+    const fetchSession = async () => {
+        const res = await fetch(`/api/sessions/${sessionId}`, {
+            method: 'GET'
+        })
+        if (res.status === 200) {
+            const session = await res.json();
+            setSession(session);
+        }
+    }
+
+    // example from nextjs, wish i could just do searchParams.set(x, y)
+    const createQueryString = useCallback( 
+        (name: string, value: string) => {
+          const params = new URLSearchParams(searchParams.toString())
+          params.set(name, value)
+     
+          return params.toString()
+        },
+        [searchParams]
+      )
+
+    const createSession = async () => {
+        const newSessionRequest = {
+            title: 'my new stream :)',
+            startTime: new Date()
+        } as Omit<NewSessionRequest, 'hostId'>
+        const res = await fetch('/api/sessions', {
+            method: 'POST',
+            body: JSON.stringify(newSessionRequest)
+        })
+        if (res.status === 201) {
+            const session = await res.json() as Session;
+            setSession(session);
+            setSessionId(session._id);
+            router.push(pathname + '?' + createQueryString('sessionId', session._id))
+        }
+    }
+
     // RTCPeerConnection Variables
     const impolite = true;
     const username = 'host';
@@ -31,14 +76,6 @@ export default function Host() {
 
     const connectionEstablished = useRef<Boolean>(false);
     const [connectionStatus, setConnectionStatus] = useState('waiting for others to join session');
-
-    const [roomCode, setRoomCode] = useState('');
-
-    const generateRoomCode = () => {
-        const roomcode = uuid();
-        setRoomCode(roomcode);
-        return roomcode;
-    }
 
     const initializeSignalingChannel = async function (roomCode: string) {
         signalingChannel.current = await initSignalingChannel(
@@ -65,7 +102,7 @@ export default function Host() {
             const pc = initConnection(
                 localVideo,
                 username,
-                roomCode,
+                sessionId,
                 makingOffer,
                 setConnectionStatus,
             );
@@ -150,9 +187,10 @@ export default function Host() {
     }, [connectionStatus]);
 
     useEffect(() => {
-        const initRoomCode = generateRoomCode();
+        if (!sessionId) return;
+        console.log('sessionId found!'); 
         // init pusher connection and send connection establishment message
-        initializeSignalingChannel(initRoomCode);
+        initializeSignalingChannel(sessionId);
 
         return () => {
             // end RTCPeerConnection
@@ -165,6 +203,14 @@ export default function Host() {
             signalingChannel.current.unsubscribe();
         }
     // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [sessionId])
+
+    useEffect(() => {
+        if (sessionId) {
+            fetchSession();
+        } else {
+            createSession();
+        }
     }, []);
 
     return (
@@ -172,9 +218,9 @@ export default function Host() {
             <Box style={{display: 'flex', gap: '1rem'}}>
                 <video ref={localVideo} style={{ width: '100%', backgroundColor: '#615d5d', borderRadius: '2px'}} autoPlay></video>
             </Box>
-            {roomCode && <Box style={{display: 'flex', flexDirection: 'column', gap: '1rem', marginLeft: 'auto', marginRight: 'auto', textAlign: 'center'}}>
+            {sessionId && <Box style={{display: 'flex', flexDirection: 'column', gap: '1rem', marginLeft: 'auto', marginRight: 'auto', textAlign: 'center'}}>
                 <Text>Room Code:</Text>
-                <Text fontSize={'2xl'}>{roomCode}</Text>
+                <Text fontSize={'2xl'}>{sessionId}</Text>
             </Box>}
             <Box style={{display: 'flex', gap: '1rem', marginLeft: 'auto', marginRight: 'auto'}}>
                 <Button onClick={startStream} style={{padding: '2rem', borderRadius: 4}}>Start Streaming</Button>

@@ -2,12 +2,13 @@ export type Session = {
     _id: string,
     title: string,
     views: number,
-    users: string[]
+    hostId: string, // userId
     startTime: Date,
     endTime?: Date,
 }
 
-export type CreateSessionRequest = {
+export type NewSessionRequest = {
     title: string,
-    user: string
+    hostId: string
+    startTime: Date
 }

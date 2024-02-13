@@ -1,9 +1,9 @@
-import { messageRepository } from "@/lib/db/container";
+import { sessionRepository } from "@/lib/db/container";
 import { NextRequest, NextResponse } from "next/server";
 
-export async function GET(request: NextRequest, { params }: { params:  { messageId: string } }) {
+export async function GET(request: NextRequest, { params }: { params: { sessionId: string } }) {
     try {
-        const message = await messageRepository.readById(params.messageId);
+        const message = await sessionRepository.readById(params.sessionId);
         return NextResponse.json(message, { status: 200 })
     } catch (e) {
         console.log(e);
